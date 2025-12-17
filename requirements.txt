@@ -4,3 +4,4 @@ numpy
 scikit-learn
 joblib
 tensorflow-cpu==2.20.0
+keras
