@@ -1,8 +1,16 @@
+import os
 import json
 import joblib
 import numpy as np
 import pandas as pd
 import streamlit as st
+
+# Sembunyikan log INFO/WARNING TensorFlow di console
+os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"
+
+# Pakai mode legacy tf.keras (kompatibel dengan model lama) di TensorFlow >= 2.20
+os.environ["TF_USE_LEGACY_KERAS"] = "1"
+
 import tensorflow as tf
 
 # =========================================
@@ -20,45 +28,73 @@ st.set_page_config(
 # =========================================
 st.markdown("""
     <style>
+    @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap');
+    
+    /* Global font */
+    * {
+        font-family: 'Poppins', sans-serif !important;
+    }
+    
     /* Main container styling */
     .main .block-container {
-        padding-top: 2rem;
-        padding-bottom: 2rem;
+        padding-top: 3rem;
+        padding-bottom: 3rem;
+        max-width: 1400px;
     }
+    
+    /* Hide Streamlit branding */
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    header {visibility: hidden;}
     
     /* Title styling */
     h1 {
         color: #1f77b4;
-        font-size: 2.5rem;
-        font-weight: 700;
+        font-size: 3rem;
+        font-weight: 800;
         margin-bottom: 0.5rem;
         text-align: center;
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%);
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
         background-clip: text;
+        text-shadow: 0 4px 20px rgba(102, 126, 234, 0.3);
+        letter-spacing: -0.5px;
     }
     
     /* Subheader styling */
     h2 {
         color: #2c3e50;
-        font-size: 1.8rem;
-        font-weight: 600;
+        font-size: 2rem;
+        font-weight: 700;
         margin-top: 2rem;
         margin-bottom: 1rem;
-        border-bottom: 3px solid #3498db;
+        border-bottom: 4px solid;
+        border-image: linear-gradient(90deg, #667eea, #764ba2) 1;
         padding-bottom: 0.5rem;
+        letter-spacing: -0.3px;
     }
     
     h3 {
         color: #34495e;
-        font-size: 1.4rem;
+        font-size: 1.6rem;
         font-weight: 600;
+        letter-spacing: -0.2px;
+    }
+    
+    h4 {
+        font-weight: 600;
+        letter-spacing: -0.1px;
     }
     
     /* Sidebar styling */
     .css-1d391kg {
-        background-color: #f8f9fa;
+        background: linear-gradient(180deg, #f8f9fa 0%, #e9ecef 100%);
+    }
+    
+    [data-testid="stSidebar"] {
+        background: linear-gradient(180deg, #ffffff 0%, #f8f9fa 100%);
+        box-shadow: 2px 0 20px rgba(0, 0, 0, 0.05);
     }
     
     /* Button styling */
@@ -67,152 +103,316 @@ st.markdown("""
         color: white;
         font-weight: 600;
         border: none;
-        border-radius: 10px;
-        padding: 0.5rem 2rem;
-        transition: all 0.3s ease;
-        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        border-radius: 12px;
+        padding: 0.75rem 2.5rem;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+        font-size: 1rem;
+        letter-spacing: 0.3px;
     }
     
     .stButton > button:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+        transform: translateY(-3px) scale(1.02);
+        box-shadow: 0 8px 25px rgba(102, 126, 234, 0.5);
+        background: linear-gradient(135deg, #764ba2 0%, #667eea 100%);
+    }
+    
+    .stButton > button:active {
+        transform: translateY(-1px) scale(0.98);
     }
     
     /* Success message styling */
     .stSuccess {
-        background-color: #d4edda;
+        background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%);
         border-left: 5px solid #28a745;
-        padding: 1rem;
-        border-radius: 5px;
+        padding: 1.2rem;
+        border-radius: 10px;
         margin: 1rem 0;
+        box-shadow: 0 2px 10px rgba(40, 167, 69, 0.2);
     }
     
     /* Error message styling */
     .stError {
-        background-color: #f8d7da;
+        background: linear-gradient(135deg, #f8d7da 0%, #f5c6cb 100%);
         border-left: 5px solid #dc3545;
-        padding: 1rem;
-        border-radius: 5px;
+        padding: 1.2rem;
+        border-radius: 10px;
+        box-shadow: 0 2px 10px rgba(220, 53, 69, 0.2);
     }
     
     /* Info message styling */
     .stInfo {
-        background-color: #d1ecf1;
+        background: linear-gradient(135deg, #d1ecf1 0%, #bee5eb 100%);
         border-left: 5px solid #17a2b8;
-        padding: 1rem;
-        border-radius: 5px;
+        padding: 1.2rem;
+        border-radius: 10px;
+        box-shadow: 0 2px 10px rgba(23, 162, 184, 0.2);
     }
     
     /* Metric card styling */
     [data-testid="stMetricValue"] {
-        font-size: 2rem;
-        font-weight: 700;
-        color: #1f77b4;
+        font-size: 2.5rem;
+        font-weight: 800;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+        letter-spacing: -0.5px;
     }
     
     [data-testid="stMetricLabel"] {
-        font-size: 1rem;
-        color: #7f8c8d;
+        font-size: 1.1rem;
+        color: #6c757d;
         font-weight: 500;
+        letter-spacing: 0.2px;
+    }
+    
+    [data-testid="stMetricContainer"] {
+        background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
+        padding: 1.5rem;
+        border-radius: 15px;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+        border: 1px solid rgba(102, 126, 234, 0.1);
+        transition: all 0.3s ease;
+    }
+    
+    [data-testid="stMetricContainer"]:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 8px 25px rgba(102, 126, 234, 0.15);
     }
     
     /* Dataframe styling */
     .dataframe {
-        border-radius: 10px;
+        border-radius: 15px;
         overflow: hidden;
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+        border: 1px solid rgba(102, 126, 234, 0.1);
     }
     
     /* Form styling */
     .stForm {
-        background-color: #ffffff;
-        padding: 2rem;
-        border-radius: 15px;
-        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-        margin: 1rem 0;
+        background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
+        padding: 2.5rem;
+        border-radius: 20px;
+        box-shadow: 0 8px 30px rgba(0, 0, 0, 0.1);
+        margin: 1.5rem 0;
+        border: 1px solid rgba(102, 126, 234, 0.1);
     }
     
     /* Expander styling */
     .streamlit-expanderHeader {
-        background-color: #f8f9fa;
-        border-radius: 5px;
+        background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+        border-radius: 10px;
         font-weight: 600;
+        padding: 0.75rem 1rem;
+        border: 1px solid rgba(102, 126, 234, 0.1);
+        transition: all 0.3s ease;
+    }
+    
+    .streamlit-expanderHeader:hover {
+        background: linear-gradient(135deg, #e9ecef 0%, #dee2e6 100%);
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
     }
     
     /* Divider styling */
     hr {
         border: none;
-        height: 2px;
-        background: linear-gradient(90deg, transparent, #3498db, transparent);
-        margin: 2rem 0;
+        height: 3px;
+        background: linear-gradient(90deg, transparent, #667eea, #764ba2, transparent);
+        margin: 3rem 0;
+        border-radius: 2px;
     }
     
     /* Code block styling */
     .stCodeBlock {
-        background-color: #f4f4f4;
-        border-radius: 5px;
-        padding: 1rem;
-        border-left: 4px solid #667eea;
+        background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+        border-radius: 10px;
+        padding: 1.2rem;
+        border-left: 5px solid #667eea;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
     }
     
     /* Sidebar header */
     .css-1lcbmhc .css-1outpf7 {
-        color: #667eea;
-        font-weight: 700;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+        font-weight: 800;
+        font-size: 1.3rem;
     }
     
     /* Input field styling */
     .stNumberInput > div > div > input,
-    .stTextInput > div > div > input {
-        border-radius: 8px;
+    .stTextInput > div > div > input,
+    .stSelectbox > div > div > select {
+        border-radius: 10px;
         border: 2px solid #e0e0e0;
-        transition: border-color 0.3s;
+        transition: all 0.3s ease;
+        padding: 0.5rem 1rem;
+        font-size: 1rem;
     }
     
     .stNumberInput > div > div > input:focus,
-    .stTextInput > div > div > input:focus {
+    .stTextInput > div > div > input:focus,
+    .stSelectbox > div > div > select:focus {
         border-color: #667eea;
-        box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.15);
+        outline: none;
     }
     
     /* Slider styling */
     .stSlider > div > div {
         background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+        border-radius: 10px;
+        height: 8px;
+    }
+    
+    .stSlider > div > div > div {
+        background: white;
+        box-shadow: 0 2px 8px rgba(102, 126, 234, 0.4);
+        border: 3px solid #667eea;
     }
     
     /* Radio button styling */
     .stRadio > div {
-        background-color: #f8f9fa;
-        padding: 1rem;
-        border-radius: 10px;
+        background: linear-gradient(135deg, #f8f9fa 0%, #ffffff 100%);
+        padding: 1.2rem;
+        border-radius: 15px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+        border: 1px solid rgba(102, 126, 234, 0.1);
+    }
+    
+    /* Checkbox styling */
+    .stCheckbox > label {
+        font-weight: 500;
+        color: #495057;
+    }
+    
+    /* File uploader styling */
+    [data-testid="stFileUploader"] {
+        border: 2px dashed #667eea;
+        border-radius: 15px;
+        padding: 2rem;
+        background: linear-gradient(135deg, #f8f9fa 0%, #ffffff 100%);
+        transition: all 0.3s ease;
+    }
+    
+    [data-testid="stFileUploader"]:hover {
+        border-color: #764ba2;
+        background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
+        box-shadow: 0 4px 15px rgba(102, 126, 234, 0.2);
     }
     
     /* Card-like containers */
     .custom-card {
-        background: white;
-        padding: 1.5rem;
-        border-radius: 10px;
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-        margin: 1rem 0;
+        background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
+        padding: 2rem;
+        border-radius: 15px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+        margin: 1.5rem 0;
+        border: 1px solid rgba(102, 126, 234, 0.1);
+        transition: all 0.3s ease;
+    }
+    
+    .custom-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 8px 30px rgba(102, 126, 234, 0.2);
     }
     
     /* Badge styling for predictions */
     .fraud-badge {
         display: inline-block;
-        padding: 0.5rem 1rem;
-        border-radius: 20px;
-        font-weight: 600;
-        font-size: 1.1rem;
+        padding: 0.75rem 1.5rem;
+        border-radius: 25px;
+        font-weight: 700;
+        font-size: 1.2rem;
+        letter-spacing: 0.5px;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+        animation: pulse 2s infinite;
+    }
+    
+    @keyframes pulse {
+        0%, 100% { transform: scale(1); }
+        50% { transform: scale(1.05); }
     }
     
     .fraud-yes {
-        background-color: #ff6b6b;
+        background: linear-gradient(135deg, #ff6b6b 0%, #ee5a6f 100%);
         color: white;
     }
     
     .fraud-no {
-        background-color: #51cf66;
+        background: linear-gradient(135deg, #51cf66 0%, #40c057 100%);
         color: white;
+    }
+    
+    /* Progress bar styling */
+    .stProgress > div > div > div {
+        background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+        border-radius: 10px;
+    }
+    
+    /* Spinner styling */
+    .stSpinner > div {
+        border-color: #667eea transparent transparent transparent;
+    }
+    
+    /* Download button styling */
+    [data-testid="stDownloadButton"] > button {
+        background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+        box-shadow: 0 4px 15px rgba(40, 167, 69, 0.4);
+    }
+    
+    [data-testid="stDownloadButton"] > button:hover {
+        background: linear-gradient(135deg, #20c997 0%, #28a745 100%);
+        box-shadow: 0 8px 25px rgba(40, 167, 69, 0.5);
+    }
+    
+    /* Animated gradient background for main sections */
+    .gradient-section {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%);
+        background-size: 200% 200%;
+        animation: gradientShift 5s ease infinite;
+        padding: 2rem;
+        border-radius: 20px;
+        box-shadow: 0 8px 30px rgba(102, 126, 234, 0.3);
+    }
+    
+    @keyframes gradientShift {
+        0% { background-position: 0% 50%; }
+        50% { background-position: 100% 50%; }
+        100% { background-position: 0% 50%; }
+    }
+    
+    /* Info box styling */
+    .info-box {
+        background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);
+        border-left: 5px solid #2196f3;
+        padding: 1.5rem;
+        border-radius: 15px;
+        box-shadow: 0 4px 15px rgba(33, 150, 243, 0.2);
+        margin: 1rem 0;
+    }
+    
+    /* Warning box styling */
+    .warning-box {
+        background: linear-gradient(135deg, #fff3cd 0%, #ffe69c 100%);
+        border-left: 5px solid #ffc107;
+        padding: 1.5rem;
+        border-radius: 15px;
+        box-shadow: 0 4px 15px rgba(255, 193, 7, 0.2);
+        margin: 1rem 0;
+    }
+    
+    /* Success box styling */
+    .success-box {
+        background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%);
+        border-left: 5px solid #28a745;
+        padding: 1.5rem;
+        border-radius: 15px;
+        box-shadow: 0 4px 15px rgba(40, 167, 69, 0.2);
+        margin: 1rem 0;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -353,11 +553,23 @@ def predict_proba(model, X_scaled: np.ndarray) -> np.ndarray:
 # UI
 # =========================================
 st.markdown("""
-    <div style="text-align: center; padding: 2rem 0;">
-        <h1>🔍 TA-11 — ANN Fraud Detection (BankSim)</h1>
-        <p style="font-size: 1.1rem; color: #7f8c8d; margin-top: 0.5rem;">
-            Model: Keras ANN | Preprocessing: Imputasi + One-Hot Encoding + Scaling | Output: Probabilitas Fraud
-        </p>
+    <div style="text-align: center; padding: 3rem 0 2rem 0;">
+        <div style="background: linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%); 
+                    padding: 2rem; border-radius: 25px; margin-bottom: 1.5rem; 
+                    box-shadow: 0 8px 30px rgba(102, 126, 234, 0.15);">
+            <h1 style="margin-bottom: 1rem;">🔍 TA-11 — ANN Fraud Detection (BankSim)</h1>
+            <p style="font-size: 1.2rem; color: #6c757d; margin-top: 0.5rem; font-weight: 500; letter-spacing: 0.3px;">
+                <span style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+                             -webkit-background-clip: text; -webkit-text-fill-color: transparent; 
+                             background-clip: text; font-weight: 600;">Model:</span> Keras ANN | 
+                <span style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+                             -webkit-background-clip: text; -webkit-text-fill-color: transparent; 
+                             background-clip: text; font-weight: 600;">Preprocessing:</span> Imputasi + One-Hot Encoding + Scaling | 
+                <span style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+                             -webkit-background-clip: text; -webkit-text-fill-color: transparent; 
+                             background-clip: text; font-weight: 600;">Output:</span> Probabilitas Fraud
+            </p>
+        </div>
     </div>
 """, unsafe_allow_html=True)
 
@@ -372,20 +584,44 @@ except Exception as e:
 with st.sidebar:
     st.markdown("""
         <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
-                    padding: 1.5rem; border-radius: 10px; margin-bottom: 2rem;">
-            <h2 style="color: white; margin: 0; font-size: 1.5rem;">⚙️ Pengaturan</h2>
+                    padding: 2rem 1.5rem; border-radius: 20px; margin-bottom: 2rem;
+                    box-shadow: 0 8px 25px rgba(102, 126, 234, 0.3); text-align: center;">
+            <h2 style="color: white; margin: 0; font-size: 1.8rem; font-weight: 700; 
+                        text-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);">⚙️ Pengaturan</h2>
         </div>
     """, unsafe_allow_html=True)
     
-    threshold = st.slider("🎯 Threshold Fraud", 0.05, 0.95, float(meta.get("threshold", 0.5)), 0.01,
-                          help="Nilai ambang batas untuk menentukan apakah transaksi dianggap fraud")
-    mode = st.radio("📝 Mode Input", ["Input Manual", "Upload CSV"], index=0)
+    st.markdown("""
+        <div style="background: linear-gradient(135deg, #f8f9fa 0%, #ffffff 100%); 
+                    padding: 1.5rem; border-radius: 15px; margin-bottom: 1.5rem;
+                    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08); border: 1px solid rgba(102, 126, 234, 0.1);">
+            <h4 style="color: #495057; margin-top: 0; margin-bottom: 1rem; font-weight: 600;">🎯 Threshold Fraud</h4>
+        </div>
+    """, unsafe_allow_html=True)
+    
+    threshold = st.slider("", 0.05, 0.95, float(meta.get("threshold", 0.5)), 0.01,
+                          help="Nilai ambang batas untuk menentukan apakah transaksi dianggap fraud",
+                          label_visibility="collapsed")
+    
+    st.markdown("""
+        <div style="background: linear-gradient(135deg, #f8f9fa 0%, #ffffff 100%); 
+                    padding: 1.5rem; border-radius: 15px; margin: 1.5rem 0;
+                    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08); border: 1px solid rgba(102, 126, 234, 0.1);">
+            <h4 style="color: #495057; margin-top: 0; margin-bottom: 1rem; font-weight: 600;">📝 Mode Input</h4>
+        </div>
+    """, unsafe_allow_html=True)
+    
+    mode = st.radio("", ["Input Manual", "Upload CSV"], index=0, label_visibility="collapsed")
     
     st.markdown("---")
     
     st.markdown("""
-        <div style="background-color: #e8f5e9; padding: 1rem; border-radius: 10px; border-left: 4px solid #4caf50;">
-            <h4 style="color: #2e7d32; margin-top: 0;">✅ Artifacts Terdeteksi</h4>
+        <div style="background: linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%); 
+                    padding: 1.5rem; border-radius: 15px; border-left: 5px solid #4caf50;
+                    box-shadow: 0 4px 15px rgba(76, 175, 80, 0.2); margin-bottom: 1.5rem;">
+            <h4 style="color: #2e7d32; margin-top: 0; font-weight: 700; font-size: 1.2rem;">
+                ✅ Artifacts Terdeteksi
+            </h4>
         </div>
     """, unsafe_allow_html=True)
     
@@ -401,8 +637,12 @@ with st.sidebar:
 # =========================================
 st.markdown("""
     <div style="background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%); 
-                padding: 1.5rem; border-radius: 15px; margin: 2rem 0;">
-        <h2 style="margin-top: 0;">📌 Panduan Pemakaian</h2>
+                padding: 2rem; border-radius: 20px; margin: 2rem 0;
+                box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1); border: 1px solid rgba(102, 126, 234, 0.1);">
+        <h2 style="margin-top: 0; color: #2c3e50; font-weight: 700;">📌 Panduan Pemakaian</h2>
+        <p style="color: #6c757d; font-size: 1.05rem; margin-top: 0.5rem;">
+            Ikuti panduan di bawah ini untuk menggunakan aplikasi deteksi fraud dengan optimal
+        </p>
     </div>
 """, unsafe_allow_html=True)
 
@@ -412,9 +652,13 @@ template_df = pd.DataFrame([template_row])
 col1, col2 = st.columns([1, 1])
 with col1:
     st.markdown("""
-        <div style="background-color: #fff3cd; padding: 1rem; border-radius: 10px; 
-                    border-left: 4px solid #ffc107; margin-bottom: 1rem;">
-            <h4 style="color: #856404; margin-top: 0;">📝 Contoh Input (Manual)</h4>
+        <div style="background: linear-gradient(135deg, #fff3cd 0%, #ffe69c 100%); 
+                    padding: 1.5rem; border-radius: 15px; 
+                    border-left: 5px solid #ffc107; margin-bottom: 1rem;
+                    box-shadow: 0 4px 15px rgba(255, 193, 7, 0.2);">
+            <h4 style="color: #856404; margin-top: 0; font-weight: 700; font-size: 1.2rem;">
+                📝 Contoh Input (Manual)
+            </h4>
         </div>
     """, unsafe_allow_html=True)
     st.code("\n".join([f"{k}: {template_row[k]}" for k in list(template_row.keys())[:min(6, len(template_row))]]), language="text")
@@ -423,9 +667,13 @@ with col1:
 
 with col2:
     st.markdown("""
-        <div style="background-color: #d1ecf1; padding: 1rem; border-radius: 10px; 
-                    border-left: 4px solid #17a2b8; margin-bottom: 1rem;">
-            <h4 style="color: #0c5460; margin-top: 0;">📥 Download Template CSV</h4>
+        <div style="background: linear-gradient(135deg, #d1ecf1 0%, #bee5eb 100%); 
+                    padding: 1.5rem; border-radius: 15px; 
+                    border-left: 5px solid #17a2b8; margin-bottom: 1rem;
+                    box-shadow: 0 4px 15px rgba(23, 162, 184, 0.2);">
+            <h4 style="color: #0c5460; margin-top: 0; font-weight: 700; font-size: 1.2rem;">
+                📥 Download Template CSV
+            </h4>
         </div>
     """, unsafe_allow_html=True)
     csv_template = template_df.to_csv(index=False).encode("utf-8")
@@ -438,8 +686,10 @@ with col2:
     )
 
 st.markdown("""
-    <div style="margin: 1.5rem 0;">
-        <h4>👀 Preview Template (1 Baris)</h4>
+    <div style="margin: 2rem 0 1rem 0;">
+        <h3 style="color: #495057; font-weight: 600; margin-bottom: 1rem;">
+            👀 Preview Template (1 Baris)
+        </h3>
     </div>
 """, unsafe_allow_html=True)
 st.dataframe(template_df, use_container_width=True, height=150)
@@ -452,8 +702,12 @@ st.markdown("<hr>", unsafe_allow_html=True)
 if mode == "Input Manual":
     st.markdown("""
         <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
-                    padding: 1.5rem; border-radius: 15px; margin: 2rem 0;">
-            <h2 style="color: white; margin: 0;">✍️ Input Manual (1 Transaksi)</h2>
+                    padding: 2.5rem; border-radius: 20px; margin: 2rem 0;
+                    box-shadow: 0 8px 30px rgba(102, 126, 234, 0.3); text-align: center;">
+            <h2 style="color: white; margin: 0; font-weight: 700; font-size: 2.2rem;
+                        text-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);">
+                ✍️ Input Manual (1 Transaksi)
+            </h2>
         </div>
     """, unsafe_allow_html=True)
 
@@ -470,9 +724,13 @@ if mode == "Input Manual":
 
     with st.form("manual_form"):
         st.markdown("""
-            <div style="background-color: #e3f2fd; padding: 1rem; border-radius: 10px; 
-                        border-left: 4px solid #2196f3; margin-bottom: 1.5rem;">
-                <h4 style="color: #1565c0; margin-top: 0;">📋 Isi Data Minimal (Disarankan)</h4>
+            <div style="background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%); 
+                        padding: 1.5rem; border-radius: 15px; 
+                        border-left: 5px solid #2196f3; margin-bottom: 1.5rem;
+                        box-shadow: 0 4px 15px rgba(33, 150, 243, 0.2);">
+                <h4 style="color: #1565c0; margin-top: 0; font-weight: 700; font-size: 1.2rem;">
+                    📋 Isi Data Minimal (Disarankan)
+                </h4>
             </div>
         """, unsafe_allow_html=True)
 
@@ -534,8 +792,10 @@ if mode == "Input Manual":
             st.markdown("---")
             st.markdown("""
                 <div style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); 
-                            padding: 2rem; border-radius: 15px; text-align: center; margin: 2rem 0;">
-                    <h2 style="color: white; margin: 0 0 1rem 0;">📊 Hasil Prediksi</h2>
+                            padding: 3rem 2rem; border-radius: 20px; text-align: center; margin: 2rem 0;
+                            box-shadow: 0 10px 40px rgba(240, 147, 251, 0.3);">
+                    <h2 style="color: white; margin: 0 0 1rem 0; font-weight: 700; font-size: 2.5rem;
+                               text-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);">📊 Hasil Prediksi</h2>
                 </div>
             """, unsafe_allow_html=True)
             
@@ -543,31 +803,47 @@ if mode == "Input Manual":
             
             with col1:
                 st.markdown(f"""
-                    <div style="background-color: #fff3cd; padding: 1.5rem; border-radius: 10px; 
-                                border-left: 5px solid #ffc107; text-align: center;">
-                        <h4 style="color: #856404; margin-top: 0;">Probabilitas Fraud</h4>
-                        <h1 style="color: #f57c00; margin: 0.5rem 0;">{prob:.4f}</h1>
-                        <div style="background-color: #f0f0f0; height: 20px; border-radius: 10px; margin-top: 1rem;">
+                    <div style="background: linear-gradient(135deg, #fff3cd 0%, #ffe69c 100%); 
+                                padding: 2rem; border-radius: 15px; 
+                                border-left: 5px solid #ffc107; text-align: center;
+                                box-shadow: 0 6px 20px rgba(255, 193, 7, 0.3);">
+                        <h4 style="color: #856404; margin-top: 0; font-weight: 700; font-size: 1.3rem;">
+                            Probabilitas Fraud
+                        </h4>
+                        <h1 style="color: #f57c00; margin: 1rem 0; font-size: 3.5rem; font-weight: 800;
+                                    text-shadow: 0 2px 10px rgba(245, 124, 0, 0.3);">{prob:.4f}</h1>
+                        <div style="background-color: #f0f0f0; height: 25px; border-radius: 12px; 
+                                    margin-top: 1.5rem; overflow: hidden; box-shadow: inset 0 2px 5px rgba(0,0,0,0.1);">
                             <div style="background: linear-gradient(90deg, #ff6b6b 0%, #ee5a6f 100%); 
-                                        height: 100%; width: {prob*100}%; border-radius: 10px;"></div>
+                                        height: 100%; width: {prob*100}%; border-radius: 12px;
+                                        transition: width 0.5s ease; box-shadow: 0 2px 8px rgba(255, 107, 107, 0.4);"></div>
                         </div>
+                        <p style="color: #856404; margin-top: 0.5rem; font-size: 0.9rem; font-weight: 500;">
+                            {prob*100:.2f}% kemungkinan fraud
+                        </p>
                     </div>
                 """, unsafe_allow_html=True)
             
             with col2:
                 badge_class = "fraud-yes" if pred == 1 else "fraud-no"
                 badge_text = "🚨 FRAUD" if pred == 1 else "✅ NORMAL"
+                bg_gradient = "linear-gradient(135deg, #ffebee 0%, #ffcdd2 100%)" if pred == 1 else "linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%)"
+                border_color = "#f44336" if pred == 1 else "#4caf50"
+                text_color = "#c62828" if pred == 1 else "#2e7d32"
                 st.markdown(f"""
-                    <div style="background-color: {'#ffebee' if pred == 1 else '#e8f5e9'}; 
-                                padding: 1.5rem; border-radius: 10px; 
-                                border-left: 5px solid {'#f44336' if pred == 1 else '#4caf50'}; 
-                                text-align: center;">
-                        <h4 style="color: {'#c62828' if pred == 1 else '#2e7d32'}; margin-top: 0;">Prediksi</h4>
-                        <div class="fraud-badge {badge_class}" style="margin: 1rem 0;">
+                    <div style="background: {bg_gradient}; 
+                                padding: 2rem; border-radius: 15px; 
+                                border-left: 5px solid {border_color}; 
+                                text-align: center;
+                                box-shadow: 0 6px 20px rgba({'244, 67, 54' if pred == 1 else '76, 175, 80'}, 0.3);">
+                        <h4 style="color: {text_color}; margin-top: 0; font-weight: 700; font-size: 1.3rem;">
+                            Prediksi
+                        </h4>
+                        <div class="fraud-badge {badge_class}" style="margin: 1.5rem 0;">
                             {badge_text}
                         </div>
-                        <p style="color: #666; margin: 0.5rem 0 0 0;">
-                            Threshold: {threshold:.2f}
+                        <p style="color: #666; margin: 1rem 0 0 0; font-weight: 500; font-size: 1rem;">
+                            Threshold: <strong>{threshold:.2f}</strong>
                         </p>
                     </div>
                 """, unsafe_allow_html=True)
@@ -584,15 +860,19 @@ if mode == "Input Manual":
 else:
     st.markdown("""
         <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
-                    padding: 1.5rem; border-radius: 15px; margin: 2rem 0;">
-            <h2 style="color: white; margin: 0;">📂 Upload CSV</h2>
+                    padding: 2.5rem; border-radius: 20px; margin: 2rem 0;
+                    box-shadow: 0 8px 30px rgba(102, 126, 234, 0.3); text-align: center;">
+            <h2 style="color: white; margin: 0; font-weight: 700; font-size: 2.2rem;
+                        text-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);">📂 Upload CSV</h2>
         </div>
     """, unsafe_allow_html=True)
 
     st.markdown("""
-        <div style="background-color: #e3f2fd; padding: 1rem; border-radius: 10px; 
-                    border-left: 4px solid #2196f3; margin-bottom: 1.5rem;">
-            <p style="margin: 0; color: #1565c0;">
+        <div style="background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%); 
+                    padding: 1.5rem; border-radius: 15px; 
+                    border-left: 5px solid #2196f3; margin-bottom: 1.5rem;
+                    box-shadow: 0 4px 15px rgba(33, 150, 243, 0.2);">
+            <p style="margin: 0; color: #1565c0; font-size: 1.05rem; font-weight: 500; line-height: 1.6;">
                 📤 Upload CSV yang berisi kolom sesuai template. 
                 Jika ada kolom yang kurang, aplikasi akan mengisi otomatis (imputasi).
             </p>
@@ -613,8 +893,10 @@ else:
         st.stop()
 
     st.markdown("""
-        <div style="margin: 1.5rem 0;">
-            <h4>👀 Preview Data</h4>
+        <div style="margin: 2rem 0 1rem 0;">
+            <h3 style="color: #495057; font-weight: 600; margin-bottom: 1rem;">
+                👀 Preview Data
+            </h3>
         </div>
     """, unsafe_allow_html=True)
     st.dataframe(df_in.head(25), use_container_width=True, height=400)
@@ -632,8 +914,10 @@ else:
         st.markdown("---")
         st.markdown("""
             <div style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); 
-                        padding: 1.5rem; border-radius: 15px; margin: 2rem 0;">
-                <h2 style="color: white; margin: 0; text-align: center;">📊 Statistik Prediksi</h2>
+                        padding: 2.5rem; border-radius: 20px; margin: 2rem 0;
+                        box-shadow: 0 10px 40px rgba(240, 147, 251, 0.3); text-align: center;">
+                <h2 style="color: white; margin: 0; font-weight: 700; font-size: 2.5rem;
+                            text-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);">📊 Statistik Prediksi</h2>
             </div>
         """, unsafe_allow_html=True)
         
@@ -648,8 +932,10 @@ else:
             st.metric("📈 Rata-rata Probabilitas", f"{float(df_out['fraud_prob'].mean()):.4f}")
 
         st.markdown("""
-            <div style="margin: 2rem 0;">
-                <h3>📊 Hasil Prediksi Lengkap</h3>
+            <div style="margin: 2.5rem 0 1rem 0;">
+                <h3 style="color: #495057; font-weight: 600; margin-bottom: 1rem;">
+                    📊 Hasil Prediksi Lengkap
+                </h3>
             </div>
         """, unsafe_allow_html=True)
         st.dataframe(df_out.head(100), use_container_width=True, height=500)
