@@ -1,0 +1,51 @@
+{
+  "dropped_cols": [
+    "customer",
+    "merchant"
+  ],
+  "num_cols": [
+    "step",
+    "amount"
+  ],
+  "cat_cols": [
+    "age",
+    "gender",
+    "zipcodeOri",
+    "zipMerchant",
+    "category"
+  ],
+  "feature_columns": [
+    "step",
+    "amount",
+    "age_'0'",
+    "age_'1'",
+    "age_'2'",
+    "age_'3'",
+    "age_'4'",
+    "age_'5'",
+    "age_'6'",
+    "age_'U'",
+    "gender_'E'",
+    "gender_'F'",
+    "gender_'M'",
+    "gender_'U'",
+    "zipcodeOri_'28007'",
+    "zipMerchant_'28007'",
+    "category_'es_barsandrestaurants'",
+    "category_'es_contents'",
+    "category_'es_fashion'",
+    "category_'es_food'",
+    "category_'es_health'",
+    "category_'es_home'",
+    "category_'es_hotelservices'",
+    "category_'es_hyper'",
+    "category_'es_leisure'",
+    "category_'es_otherservices'",
+    "category_'es_sportsandtoys'",
+    "category_'es_tech'",
+    "category_'es_transportation'",
+    "category_'es_travel'",
+    "category_'es_wellnessandbeauty'"
+  ],
+  "threshold": 0.5
+}
